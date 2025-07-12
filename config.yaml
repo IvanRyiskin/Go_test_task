@@ -1,0 +1,3 @@
+backend_url: "https://habr.com "
+listen_addr: ":8080"
+cache_size: 10
