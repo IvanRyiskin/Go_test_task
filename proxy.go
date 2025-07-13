@@ -55,6 +55,10 @@ func handleRequest(cache *Cache, backendURL string) http.HandlerFunc {
 			return
 		}
 
+		// для записи в кеш обязательно записать в переменную []byte
+		// если кеш не нужен, можно напрямую передавать клиенту resp.Body через io.Copy (виде, стриминг)
+		// Body - это io.ReadCloser, т.е. поток (stream) из которого можно читать данные по частям
+		// io.ReadCloser - интерфейс, который реализует io.Reader и io.Closer
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			http.Error(writer, err.Error(), http.StatusInternalServerError)
