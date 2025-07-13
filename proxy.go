@@ -23,7 +23,7 @@ func handleRequest(cache *Cache, backendURL string) http.HandlerFunc {
 
 		// пытаемся получить данные из кэша
 		// проверка n на количество отправленных байт. Write не всегда отправляет все данные
-		// Writer записывает данные как HTTP-ответ клиенту
+		// Writer записывает данные как HTTP-ответ клиенту, полученные от бэкенда
 		if cached, ok := cache.Get(url); ok {
 			n, err := writer.Write(cached)
 			if err != nil {
