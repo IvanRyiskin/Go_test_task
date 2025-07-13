@@ -3,6 +3,7 @@ package main
 import (
 	"io"
 	"net/http"
+	"strings"
 )
 
 // обработчик http запроса. автомат реализует интерфейс Handler
@@ -16,17 +17,18 @@ func handleRequest(cache *Cache, backendURL string) http.HandlerFunc {
 			return
 		}
 
-		url := backendURL + request.URL.Path
+		// формируем url для запроса + убираем пробелы
+		url := strings.TrimSpace(backendURL) + request.URL.Path
 
 		// пытаемся получить данные из кэша
 		// проверка n на количество отправленных байт. Write не всегда отправляет все данные
 		// Writer записывает данные как HTTP-ответ клиенту
-		if cahed, ok := cache.Get(url); ok {
-			n, err := writer.Write(cahed)
+		if cached, ok := cache.Get(url); ok {
+			n, err := writer.Write(cached)
 			if err != nil {
 				http.Error(writer, err.Error(), http.StatusInternalServerError)
 			}
-			if n != len(cahed) {
+			if n != len(cached) {
 				http.Error(writer, "Не все данные были отправлены", http.StatusInternalServerError)
 			}
 			return

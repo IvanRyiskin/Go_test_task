@@ -2,12 +2,7 @@ package main
 
 import "sync"
 
-type CacheItem struct {
-	Key   string
-	Value []byte
-}
-
-// мьютекс для защиты от гонок
+// Cache мьютекс для защиты от гонок
 type Cache struct {
 	items map[string][]byte
 	queue []string
@@ -31,7 +26,7 @@ func (c *Cache) Get(key string) ([]byte, bool) {
 	return value, ok
 }
 
-// реализация очереди
+// Set реализация очереди
 // возможно переделать в канал + select от deadlock
 func (c *Cache) Set(key string, value []byte) {
 	c.mu.Lock()
