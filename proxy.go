@@ -18,6 +18,7 @@ func handleRequest(cache *Cache, backendURL string) http.HandlerFunc {
 		}
 
 		// формируем url для запроса + убираем пробелы
+		// request.URL.Path - путь к ресурсу (endpoint)
 		url := strings.TrimSpace(backendURL) + request.URL.Path
 
 		// пытаемся получить данные из кэша
