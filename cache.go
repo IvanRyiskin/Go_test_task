@@ -1,4 +1,4 @@
-package GoWorkspace
+package main
 
 import "sync"
 
@@ -7,6 +7,7 @@ type CacheItem struct {
 	Value []byte
 }
 
+// мьютекс для защиты от гонок
 type Cache struct {
 	items map[string][]byte
 	queue []string
@@ -31,6 +32,7 @@ func (c *Cache) Get(key string) ([]byte, bool) {
 }
 
 // реализация очереди
+// возможно переделать в канал + select от deadlock
 func (c *Cache) Set(key string, value []byte) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
