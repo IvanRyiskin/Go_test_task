@@ -21,15 +21,27 @@ func handleRequest(cache *Cache, backendURL string) http.HandlerFunc {
 		// request.URL.Path - путь к ресурсу (endpoint)
 		url := strings.TrimSpace(backendURL) + request.URL.Path
 
-		// пытаемся получить данные из кэша
+		// проверяем кеш
 		// проверка n на количество отправленных байт. Write не всегда отправляет все данные
 		// Writer записывает данные как HTTP-ответ клиенту, полученные от бэкенда
-		if cached, ok := cache.Get(url); ok {
-			n, err := writer.Write(cached)
+		if cachedItem, ok := cache.Get(url); ok {
+			// отправляем заголовки
+			for key, value := range cachedItem.Headers {
+				// Header() возвращает type Header map[string][]string
+				writer.Header()[key] = value
+			}
+
+			// отправляем cookies
+			for _, cookie := range cachedItem.Cookies {
+				writer.Header().Add("Set-Cookie", cookie.String())
+			}
+
+			// отправляем тело
+			n, err := writer.Write(cachedItem.Body)
 			if err != nil {
 				http.Error(writer, err.Error(), http.StatusInternalServerError)
 			}
-			if n != len(cached) {
+			if n != len(cachedItem.Body) {
 				http.Error(writer, "Не все данные были отправлены", http.StatusInternalServerError)
 			}
 			return
@@ -42,12 +54,6 @@ func handleRequest(cache *Cache, backendURL string) http.HandlerFunc {
 			http.Error(writer, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		defer func() {
-			err := resp.Body.Close()
-			if err != nil {
-				http.Error(writer, err.Error(), http.StatusInternalServerError)
-			}
-		}()
 
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
@@ -55,10 +61,25 @@ func handleRequest(cache *Cache, backendURL string) http.HandlerFunc {
 			return
 		}
 
+		defer func() {
+			err := resp.Body.Close()
+			if err != nil {
+				http.Error(writer, err.Error(), http.StatusInternalServerError)
+			}
+		}()
+
 		// сохраняем в кеш
-		cache.Set(url, body)
+		cache.Set(url, body, resp.Header, resp.Cookies())
 
 		// отправляем ответ клиенту
+		for key, value := range resp.Header {
+			writer.Header()[key] = value
+		}
+
+		for _, cookie := range resp.Cookies() {
+			writer.Header().Add("Set-Cookie", cookie.String())
+		}
+
 		n, err := writer.Write(body)
 		if err != nil {
 			http.Error(writer, err.Error(), http.StatusInternalServerError)
