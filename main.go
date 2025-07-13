@@ -38,6 +38,7 @@ func main() {
 
 	// регистрирует обработчика запросов
 	// паттерн '/' обрабатывает все HTTP запросы
+	// http.Handle() - для интерфейса http.Handler
 	http.HandleFunc("/", handleRequest(cache, config.BackendURL))
 
 	fmt.Printf("Starting proxy on %s\n", config.ListenAddr)
