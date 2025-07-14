@@ -41,12 +41,8 @@ func (c *Cache) Set(url string, body []byte, headers http.Header, cookies []*htt
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if len(c.queue) >= c.size {
-		oldest := c.queue[0]
-		copy(c.queue, c.queue[1:])
-		c.queue = c.queue[:len(c.queue)-1]
-		delete(c.items, oldest)
-	}
+	// проверка размера кеша
+	c.checkQueueSize()
 
 	c.items[url] = &CacheItem{
 		Body:    body,
@@ -54,4 +50,13 @@ func (c *Cache) Set(url string, body []byte, headers http.Header, cookies []*htt
 		Cookies: cookies,
 	}
 	c.queue = append(c.queue, url)
+}
+
+func (c *Cache) checkQueueSize() {
+	if len(c.queue) >= c.size {
+		oldest := c.queue[0]
+		copy(c.queue, c.queue[1:])
+		c.queue = c.queue[:len(c.queue)-1]
+		delete(c.items, oldest)
+	}
 }

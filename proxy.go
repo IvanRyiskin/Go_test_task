@@ -6,10 +6,11 @@ import (
 	"strings"
 )
 
-// обработчик http запроса. автомат реализует интерфейс Handler
+// обработчик http запроса. автоматически реализует интерфейс Handler
 // http.ResponseWriter — с помощью него мы будем отвечать клиенту.
 // *http.Request — информация о пришедшем HTTP-запросе.
-// Обработка тольок GET запроса. остальные обрабатываются отдельно, т.к. могут изменять состояние
+// http.Error() - отправляет ответ клиенту с кодом ошибки
+// Обработка только GET запроса. остальные обрабатываются отдельно, т.к. могут изменять состояние
 func handleRequest(cache *Cache, backendURL string) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != "GET" {
@@ -22,33 +23,11 @@ func handleRequest(cache *Cache, backendURL string) http.HandlerFunc {
 		url := strings.TrimSpace(backendURL) + request.URL.Path
 
 		// проверяем кеш
-		// проверка n на количество отправленных байт. Write не всегда отправляет все данные
-		// Writer записывает данные как HTTP-ответ клиенту, полученные от бэкенда
 		if cachedItem, ok := cache.Get(url); ok {
-			// отправляем заголовки
-			for key, value := range cachedItem.Headers {
-				// Header() возвращает type Header map[string][]string
-				writer.Header()[key] = value
-			}
-
-			// отправляем cookies
-			for _, cookie := range cachedItem.Cookies {
-				writer.Header().Add("Set-Cookie", cookie.String())
-			}
-
-			// отправляем тело
-			n, err := writer.Write(cachedItem.Body)
-			if err != nil {
-				http.Error(writer, err.Error(), http.StatusInternalServerError)
-			}
-			if n != len(cachedItem.Body) {
-				http.Error(writer, "Не все данные были отправлены", http.StatusInternalServerError)
-			}
-			return
+			sendResponse(writer, cachedItem.Headers, cachedItem.Cookies, cachedItem.Body)
 		}
 
 		// если не в кеше, делаем запрос на бэк
-		// Body.Close() закрывает сетевое соединение + освобождает ресурсы
 		resp, err := http.Get(url)
 		if err != nil {
 			http.Error(writer, err.Error(), http.StatusInternalServerError)
@@ -65,6 +44,7 @@ func handleRequest(cache *Cache, backendURL string) http.HandlerFunc {
 			return
 		}
 
+		// Body.Close() закрывает сетевое соединение + освобождает ресурсы
 		defer func() {
 			err := resp.Body.Close()
 			if err != nil {
@@ -75,21 +55,31 @@ func handleRequest(cache *Cache, backendURL string) http.HandlerFunc {
 		// сохраняем в кеш
 		cache.Set(url, body, resp.Header, resp.Cookies())
 
-		// отправляем ответ клиенту
-		for key, value := range resp.Header {
-			writer.Header()[key] = value
-		}
-
-		for _, cookie := range resp.Cookies() {
-			writer.Header().Add("Set-Cookie", cookie.String())
-		}
-
-		n, err := writer.Write(body)
-		if err != nil {
-			http.Error(writer, err.Error(), http.StatusInternalServerError)
-		}
-		if n != len(body) {
-			http.Error(writer, "Не все данные были отправлены", http.StatusInternalServerError)
-		}
+		sendResponse(writer, resp.Header, resp.Cookies(), body)
 	}
+}
+
+func sendResponse(writer http.ResponseWriter, headers http.Header, cookies []*http.Cookie, body []byte) {
+	// Writer записывает данные как HTTP-ответ клиенту, полученные от бэкенда
+	// отправляем headers
+	for key, value := range headers {
+		// Header() возвращает type Header map[string][]string
+		writer.Header()[key] = value
+	}
+
+	// отправляем cookies
+	for _, cookie := range cookies {
+		writer.Header().Add("Set-Cookie", cookie.String())
+	}
+
+	// отправляем body
+	n, err := writer.Write(body)
+	if err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+	}
+	// проверка n на количество отправленных байт. Write не всегда отправляет все данные
+	if n != len(body) {
+		http.Error(writer, "Не все данные были отправлены", http.StatusInternalServerError)
+	}
+	return
 }
