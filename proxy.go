@@ -25,6 +25,7 @@ func handleRequest(cache *Cache, backendURL string) http.HandlerFunc {
 		// проверяем кеш
 		if cachedItem, ok := cache.Get(url); ok {
 			sendResponse(writer, cachedItem.Headers, cachedItem.Cookies, cachedItem.Body)
+			return
 		}
 
 		// если не в кеше, делаем запрос на бэк
@@ -34,7 +35,16 @@ func handleRequest(cache *Cache, backendURL string) http.HandlerFunc {
 			return
 		}
 
-		// для записи в кеш обязательно записать в переменную []byte
+		if resp != nil {
+			defer func() {
+				err := resp.Body.Close()
+				if err != nil {
+					http.Error(writer, err.Error(), http.StatusInternalServerError)
+				}
+			}()
+		}
+
+		// для записи в кеш обязательно записать в переменную []byteцвет так
 		// если кеш не нужен, можно напрямую передавать клиенту resp.Body через io.Copy (виде, стриминг)
 		// Body - это io.ReadCloser, т.е. поток (stream) из которого можно читать данные по частям
 		// io.ReadCloser - интерфейс, который реализует io.Reader и io.Closer
@@ -44,18 +54,11 @@ func handleRequest(cache *Cache, backendURL string) http.HandlerFunc {
 			return
 		}
 
-		// Body.Close() закрывает сетевое соединение + освобождает ресурсы
-		defer func() {
-			err := resp.Body.Close()
-			if err != nil {
-				http.Error(writer, err.Error(), http.StatusInternalServerError)
-			}
-		}()
-
 		// сохраняем в кеш
 		cache.Set(url, body, resp.Header, resp.Cookies())
 
 		sendResponse(writer, resp.Header, resp.Cookies(), body)
+		return
 	}
 }
 
