@@ -12,6 +12,7 @@ type CacheItem struct {
 }
 
 // Cache мьютекс для защиты от гонок
+// globalMu можно использовать в самой функции, а не в структуре. Нет инкапсуляции + блокировка операций с другими кешами
 type Cache struct {
 	items map[string]*CacheItem
 	queue []string

@@ -44,7 +44,7 @@ func handleRequest(cache *Cache, backendURL string) http.HandlerFunc {
 			}()
 		}
 
-		// для записи в кеш обязательно записать в переменную []byteцвет так
+		// для записи в кеш обязательно записать в переменную []byte
 		// если кеш не нужен, можно напрямую передавать клиенту resp.Body через io.Copy (виде, стриминг)
 		// Body - это io.ReadCloser, т.е. поток (stream) из которого можно читать данные по частям
 		// io.ReadCloser - интерфейс, который реализует io.Reader и io.Closer
