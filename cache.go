@@ -9,6 +9,7 @@ type CacheItem struct {
 	Body    []byte
 	Headers http.Header
 	Cookies []*http.Cookie
+	Status  int
 }
 
 // Cache мьютекс для защиты от гонок
@@ -38,7 +39,7 @@ func (c *Cache) Get(url string) (*CacheItem, bool) {
 
 // Set реализация очереди
 // возможно переделать в канал + select от deadlock
-func (c *Cache) Set(url string, body []byte, headers http.Header, cookies []*http.Cookie) {
+func (c *Cache) Set(url string, body []byte, headers http.Header, cookies []*http.Cookie, status int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -49,6 +50,7 @@ func (c *Cache) Set(url string, body []byte, headers http.Header, cookies []*htt
 		Body:    body,
 		Headers: headers,
 		Cookies: cookies,
+		Status:  status,
 	}
 	c.queue = append(c.queue, url)
 }

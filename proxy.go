@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/labstack/echo/v4"
 	"io"
 	"net/http"
 	"strings"
@@ -11,78 +12,73 @@ import (
 // *http.Request — информация о пришедшем HTTP-запросе.
 // http.Error() - отправляет ответ клиенту с кодом ошибки
 // Обработка только GET запроса. остальные обрабатываются отдельно, т.к. могут изменять состояние
-func handleRequest(cache *Cache, backendURL string) http.HandlerFunc {
-	return func(writer http.ResponseWriter, request *http.Request) {
-		if request.Method != "GET" {
-			http.Error(writer, "Method not allowed", http.StatusMethodNotAllowed)
-			return
+func handleRequest(cache *Cache) echo.HandlerFunc {
+	return func(context echo.Context) error {
+		domain := context.Param("domain")
+		rest := context.Param("*")
+
+		if !isValidDomain(domain) {
+			return context.String(http.StatusBadRequest, "некорректный домен")
 		}
 
-		// формируем url для запроса + убираем пробелы
-		// request.URL.Path - путь к ресурсу (endpoint)
-		url := strings.TrimSpace(backendURL) + request.URL.Path
+		URL := "https://" + domain + rest
 
 		// проверяем кеш
-		if cachedItem, ok := cache.Get(url); ok {
-			sendResponse(writer, cachedItem.Headers, cachedItem.Cookies, cachedItem.Body)
-			return
+		if cachedItem, ok := cache.Get(URL); ok {
+			sendResponse(context, cachedItem.Headers, cachedItem.Cookies, cachedItem.Body, http.StatusOK)
+			return nil
 		}
 
 		// если не в кеше, делаем запрос на бэк
-		resp, err := http.Get(url)
+		resp, err := http.Get(URL)
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusInternalServerError)
-			return
+			return context.String(http.StatusInternalServerError, err.Error())
 		}
 
 		if resp != nil {
-			defer func() {
-				err := resp.Body.Close()
-				if err != nil {
-					http.Error(writer, err.Error(), http.StatusInternalServerError)
-				}
-			}()
+			defer resp.Body.Close()
 		}
 
 		// для записи в кеш обязательно записать в переменную []byte
-		// если кеш не нужен, можно напрямую передавать клиенту resp.Body через io.Copy (виде, стриминг)
 		// Body - это io.ReadCloser, т.е. поток (stream) из которого можно читать данные по частям
 		// io.ReadCloser - интерфейс, который реализует io.Reader и io.Closer
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusInternalServerError)
-			return
+			return context.String(http.StatusInternalServerError, err.Error())
 		}
 
 		// сохраняем в кеш
-		cache.Set(url, body, resp.Header, resp.Cookies())
+		cache.Set(URL, body, resp.Header, resp.Cookies(), resp.StatusCode)
 
-		sendResponse(writer, resp.Header, resp.Cookies(), body)
-		return
+		sendResponse(context, resp.Header, resp.Cookies(), body, resp.StatusCode)
+		return nil
 	}
 }
 
-func sendResponse(writer http.ResponseWriter, headers http.Header, cookies []*http.Cookie, body []byte) {
-	// Writer записывает данные как HTTP-ответ клиенту, полученные от бэкенда
+func sendResponse(context echo.Context, headers http.Header, cookies []*http.Cookie, body []byte, statusCode int) {
 	// отправляем headers
-	for key, value := range headers {
-		// Header() возвращает type Header map[string][]string
-		writer.Header()[key] = value
+	for key, values := range headers {
+		for _, v := range values {
+			context.Response().Header().Add(key, v)
+		}
 	}
 
 	// отправляем cookies
 	for _, cookie := range cookies {
-		writer.Header().Add("Set-Cookie", cookie.String())
+		context.Response().Header().Add("Set-Cookie", cookie.String())
 	}
 
 	// отправляем body
-	n, err := writer.Write(body)
-	if err != nil {
-		http.Error(writer, err.Error(), http.StatusInternalServerError)
-	}
-	// проверка n на количество отправленных байт. Write не всегда отправляет все данные
-	if n != len(body) {
-		http.Error(writer, "Не все данные были отправлены", http.StatusInternalServerError)
-	}
-	return
+	context.Response().Write(body)
+
+	// отправляем статус
+	context.Response().WriteHeader(statusCode)
+}
+
+// isValidDomain проверяет, что домен выглядит корректно
+func isValidDomain(domain string) bool {
+	return strings.Contains(domain, ".") &&
+		!strings.HasPrefix(domain, ".") &&
+		!strings.HasSuffix(domain, ".") &&
+		!strings.Contains(domain, "..")
 }

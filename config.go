@@ -9,9 +9,6 @@ import (
 
 // Config теги yaml указывают на соответствующие поля в yaml конфиге из-за разницы в регистре
 type Config struct {
-	Backend struct {
-		URL string `yaml:"url"`
-	} `yaml:"backend"`
 	Listener struct {
 		Addr string `yaml:"addr"`
 	} `yaml:"listener"`
@@ -44,18 +41,13 @@ func loadConfig(path string) (*Config, error) {
 
 // checkConfig проверяет конфиг на корректность
 func checkConfig(config *Config) error {
-	url := strings.TrimSpace(config.Backend.URL)
-	if url == "" {
-		return errors.New("Передан пустой URL")
-	}
-
 	addr := strings.TrimSpace(config.Listener.Addr)
 	if addr == "" {
-		return errors.New("Передан пустой адрес")
+		return errors.New("передан пустой адрес")
 	}
 
 	if config.Cache.Size == 0 || config.Cache.Size < 0 {
-		return errors.New("Передан некорректный размер кэша")
+		return errors.New("передан некорректный размер кэша")
 	}
 	return nil
 }
