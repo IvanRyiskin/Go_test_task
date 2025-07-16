@@ -69,7 +69,13 @@ func sendResponse(context echo.Context, headers http.Header, cookies []*http.Coo
 	}
 
 	// отправляем body
-	context.Response().Write(body)
+	n, err := context.Response().Write(body)
+	if err != nil {
+		context.Logger().Error("Ошибка записи в ответ:", err)
+	}
+	if n != len(body) {
+		context.Logger().Error("Не все байты были записаны: ожидается", len(body), "получено", n)
+	}
 
 	// отправляем статус
 	context.Response().WriteHeader(statusCode)
